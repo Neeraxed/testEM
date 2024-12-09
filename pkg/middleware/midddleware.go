@@ -44,7 +44,7 @@ func (o *Onion) LogRequestResponse(next httprouter.Handle) httprouter.Handle {
 
 		next(w, r, ps)
 
-		o.log.Info("Reposne sent",
+		o.log.Info("Response sent",
 			zap.Duration("time to handle", o.duration),
 		)
 	}

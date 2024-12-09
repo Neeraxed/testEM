@@ -1,21 +1,19 @@
 package config
 
 import (
-	"go.uber.org/zap"
+	"os"
 )
 
 type Config struct {
-	postgresDSN string
+	PostgresDSN string
+	ExternalUrl string
+	Port        string
 }
 
-func ReadConfig(log *zap.Logger) string {
-	//TODO use .env
-	//dbuser := os.Getenv("DBUSER")
-	//dbpass := os.Getenv("DBPASSWORD")
-
-	//return &Config{
-	//	connStr: "user=" + dbuser + " password=" + dbpass + " dbname=tester sslmode=disable",
-	//}
-
-	return ""
+func ReadConfig() *Config {
+	return &Config{
+		PostgresDSN: os.Getenv("POSTGRESDSN"),
+		ExternalUrl: os.Getenv("EXTERNALURL"),
+		Port:        os.Getenv("PORT"),
+	}
 }

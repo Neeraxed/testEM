@@ -2,21 +2,24 @@ package delivery
 
 import (
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
-	"net/url"
 	"strconv"
-	"testEM/internal/repository/song"
+	"testEM/internal/entities"
+	"testEM/internal/repository"
 	"testEM/internal/usecase"
 	"testEM/pkg/middleware"
+	"time"
 
 	"github.com/julienschmidt/httprouter"
 	"go.uber.org/zap"
 )
 
 const (
-	songsUrl  = "api/v1/songs"
-	songUrl   = "api/v1/songs/:id"
-	versesUrl = "api/v1/verses/:id"
+	songsUrl  = "/api/v1/songs"
+	songUrl   = "/api/v1/songs/:id"
+	versesUrl = "/api/v1/songs/:id/verses"
 )
 
 type Handler interface {
@@ -24,24 +27,24 @@ type Handler interface {
 }
 
 type handler struct {
-	Logger *zap.Logger
-	uc     *usecase.Usecase
+	log *zap.Logger
+	uc  *usecase.Usecase
 }
 
 func NewHandler(lg *zap.Logger, uc *usecase.Usecase) Handler {
 	return &handler{
-		Logger: lg,
-		uc:     uc,
+		log: lg,
+		uc:  uc,
 	}
 }
 
 func (h *handler) ApplyRoutes(o *middleware.Onion) *httprouter.Router {
 	router := httprouter.New()
 	router.GET(songsUrl, o.Apply(h.GetSongs))
-	router.GET(versesUrl, o.Apply(h.GetTextBySongID))
+	router.GET(versesUrl, o.Apply(h.GetVersesBySongID))
 	router.DELETE(songUrl, o.Apply(h.DeleteSong))
 	router.PATCH(songUrl, o.Apply(h.PatchSong))
-	router.POST(songUrl, o.Apply(h.AddSong))
+	router.POST(songsUrl, o.Apply(h.AddSong))
 
 	router.GlobalOPTIONS = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Access-Control-Request-Method") != "" {
@@ -51,6 +54,7 @@ func (h *handler) ApplyRoutes(o *middleware.Onion) *httprouter.Router {
 			header.Set("Access-Control-Allow-Origin", "*")
 		}
 		w.WriteHeader(http.StatusNoContent)
+		return
 	})
 
 	return router
@@ -58,14 +62,9 @@ func (h *handler) ApplyRoutes(o *middleware.Onion) *httprouter.Router {
 
 func (h *handler) GetSongs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
-	searchOptions := song.SongSearchOptions{}
+	searchOptions := entities.SongSearchOptions{}
 
-	myUrl, err := url.Parse(r.URL.Path)
-	if err != nil {
-
-	}
-	params := myUrl.Query()
-
+	params := r.URL.Query()
 	if params != nil && len(params) > 0 {
 		if val := params.Get("song"); val != "" {
 			searchOptions.Song = &val
@@ -76,45 +75,126 @@ func (h *handler) GetSongs(w http.ResponseWriter, r *http.Request, ps httprouter
 		if val := params.Get("page"); val != "" {
 			page, err := strconv.Atoi(val)
 			if err != nil {
-
+				h.log.Debug("Failed to parse page int from string",
+					zap.String("message", err.Error()),
+					zap.Time("time", time.Now()),
+				)
 			}
 			searchOptions.Page = &page
 		}
-		if val := params.Get("perpage"); val != "" {
+		if val := params.Get("perPage"); val != "" {
 			perpage, err := strconv.Atoi(val)
 			if err != nil {
-
+				h.log.Debug("Failed to parse page int from string",
+					zap.String("message", err.Error()),
+					zap.Time("time", time.Now()),
+				)
 			}
 			searchOptions.PerPage = &perpage
 		}
 
-		//TODO add date filter
+		if val := params.Get("releaseDateAfter"); val != "" {
+			d, err := time.Parse(usecase.DateLayout, val)
+			if err != nil {
+				h.log.Debug("Failed to parse release date",
+					zap.String("message", err.Error()),
+					zap.Time("time", time.Now()),
+				)
+			}
+			searchOptions.ReleaseDateAfter = &d
+		}
+		if val := params.Get("releaseDateBefore"); val != "" {
+			d, err := time.Parse(usecase.DateLayout, val)
+			if err != nil {
+				h.log.Debug("Failed to parse release date",
+					zap.String("message", err.Error()),
+					zap.Time("time", time.Now()),
+				)
+			}
+			searchOptions.ReleaseDateBefore = &d
+		}
 	}
 
 	s, err := h.uc.GetSongsWithFilters(searchOptions)
 	if err != nil {
-
+		if errors.Is(err, &repository.NotFoundErr{}) {
+			h.log.Error("Failed get songs with filters: not found",
+				zap.String("message", err.Error()),
+				zap.Time("time", time.Now()),
+			)
+			w.WriteHeader(http.StatusNotFound)
+			return
+		} else {
+			h.log.Error("Failed get songs with filters",
+				zap.String("message", err.Error()),
+				zap.Time("time", time.Now()),
+			)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 	}
+
 	resp, err := json.Marshal(s)
 	if err != nil {
-
+		h.log.Debug("Failed to serialize response",
+			zap.String("message", err.Error()),
+			zap.Time("time", time.Now()),
+		)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
 	w.WriteHeader(http.StatusOK)
 	w.Write(resp)
 }
 
-func (h *handler) GetTextBySongID(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (h *handler) GetVersesBySongID(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 
 	songID := ps.ByName("id")
+	searchOptions := entities.VerseSearchOptions{}
+	searchOptions.SongID = songID
 
-	s, err := h.uc.GetSong(songID)
+	params := r.URL.Query()
+	if params != nil && len(params) > 0 {
+		if val := params.Get("page"); val != "" {
+			page, err := strconv.Atoi(val)
+			if err != nil {
+				h.log.Debug("Failed to parse page int from string",
+					zap.String("message", err.Error()),
+					zap.Time("time", time.Now()),
+				)
+			}
+			searchOptions.Page = page
+		}
+		if val := params.Get("perPage"); val != "" {
+			perpage, err := strconv.Atoi(val)
+			if err != nil {
+				h.log.Debug("Failed to parse page int from string",
+					zap.String("message", err.Error()),
+					zap.Time("time", time.Now()),
+				)
+			}
+			searchOptions.PerPage = perpage
+		}
+	}
+
+	s, err := h.uc.GetVerses(searchOptions)
 	if err != nil {
+		h.log.Error("Failed get song text",
+			zap.String("message", err.Error()),
+			zap.Time("time", time.Now()),
+		)
 		w.WriteHeader(http.StatusNotFound)
+		return
 	}
 	resp, err := json.Marshal(s)
 	if err != nil {
+		h.log.Debug("Failed to serialize response",
+			zap.String("message", err.Error()),
+			zap.Time("time", time.Now()),
+		)
 		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
 	w.WriteHeader(http.StatusOK)
 	w.Write(resp)
@@ -125,56 +205,87 @@ func (h *handler) DeleteSong(w http.ResponseWriter, r *http.Request, ps httprout
 	songID := ps.ByName("id")
 	err := h.uc.DeleteSong(songID)
 	if err != nil {
+		h.log.Error("Failed delete song",
+			zap.String("message", err.Error()),
+			zap.Time("time", time.Now()),
+		)
 		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
-
-	w.WriteHeader(http.StatusOK)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *handler) PatchSong(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	songID := ps.ByName("id")
-	patchDTO := song.PatchSongDTO{}
+	patchDTO := entities.PatchSongDTO{}
 
-	myUrl, err := url.Parse(r.URL.Path)
+	body, err := io.ReadAll(r.Body)
+	err = json.Unmarshal(body, &patchDTO)
 	if err != nil {
+		h.log.Error("Failed to read body",
+			zap.String("message", err.Error()),
+			zap.Time("time", time.Now()),
+		)
 		w.WriteHeader(http.StatusBadRequest)
-	}
-	params := myUrl.Query()
-
-	if params != nil && len(params) > 0 {
-		if val := params.Get("song"); val != "" {
-			patchDTO.Song = &val
-		}
-		if val := params.Get("group"); val != "" {
-			patchDTO.Group = &val
-		}
-		if val := params.Get("link"); val != "" {
-			patchDTO.Link = &val
-		}
-		if val := params.Get("releaseDate"); val != "" {
-			patchDTO.ReleaseDate = &val
-		}
+		return
 	}
 
-	err = h.uc.PatchSong(songID, patchDTO)
+	song, err := h.uc.PatchSong(songID, patchDTO)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		h.log.Error("Failed to update song",
+			zap.String("message", err.Error()),
+			zap.Time("time", time.Now()),
+		)
+		w.WriteHeader(http.StatusNotFound)
+		return
 	}
 	w.WriteHeader(http.StatusOK)
+	resp, err := json.Marshal(song)
+	if err != nil {
+		h.log.Debug("Failed to serialize response",
+			zap.String("message", err.Error()),
+			zap.Time("time", time.Now()),
+		)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	w.Write(resp)
 }
 
 func (h *handler) AddSong(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
-	s := ps.ByName("id")
-	group := ps.ByName("group")
-	songDTO := song.AddSongDTO{
-		Group: &group,
-		Song:  &s,
-	}
-	err := h.uc.AddSong(songDTO)
+
+	body, err := io.ReadAll(r.Body)
+	songDTO := entities.AddSongDTO{}
+	err = json.Unmarshal(body, &songDTO)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		h.log.Error("Failed to read body",
+			zap.String("message", err.Error()),
+			zap.Time("time", time.Now()),
+		)
+		w.WriteHeader(http.StatusBadRequest)
+		return
 	}
-	w.WriteHeader(http.StatusOK)
+
+	song, err := h.uc.AddSong(songDTO)
+	if err != nil {
+		h.log.Error("Failed to add song",
+			zap.String("message", err.Error()),
+			zap.Time("time", time.Now()),
+		)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusCreated)
+	resp, err := json.Marshal(song)
+	if err != nil {
+		h.log.Debug("Failed to serialize response",
+			zap.String("message", err.Error()),
+			zap.Time("time", time.Now()),
+		)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	w.Write(resp)
 }
