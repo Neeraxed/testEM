@@ -3,7 +3,6 @@ package repository
 import (
 	"database/sql"
 	"errors"
-	"fmt"
 	"testEM/internal/entities"
 	"time"
 
@@ -32,7 +31,6 @@ func (st *VerseStorage) AddVersesForSong(songId string, verses []*entities.Verse
 
 	builder = builder.PlaceholderFormat(sq.Dollar)
 	query, args, err := builder.ToSql()
-	fmt.Println(query)
 	if err != nil {
 		st.log.Debug("Failed to build sql query to add verses",
 			zap.String("message", err.Error()),
@@ -54,7 +52,7 @@ func (st *VerseStorage) AddVersesForSong(songId string, verses []*entities.Verse
 
 func (st *VerseStorage) GetVersesForSong(opts entities.VerseSearchOptions) ([]*entities.Verse, int, error) {
 	builder := sq.Select("*").From("verses")
-	builder = st.AddSearchOptionsToBuilder(builder, &opts)
+	builder = st.AddSearchOptionsToBuilder(builder, &opts, true)
 	builder = builder.PlaceholderFormat(sq.Dollar)
 	queryStr, args, err := builder.ToSql()
 	if err != nil {
@@ -65,8 +63,15 @@ func (st *VerseStorage) GetVersesForSong(opts entities.VerseSearchOptions) ([]*e
 		return nil, 0, err
 	}
 
-	var verses []*entities.Verse
+	verses := make([]*entities.Verse, 0)
 	rows, err := st.db.Query(queryStr, args...)
+	if err != nil {
+		st.log.Debug("Failed to execute query to get verses",
+			zap.String("message", err.Error()),
+			zap.Time("time", time.Now()),
+		)
+		return nil, 0, err
+	}
 
 	for rows.Next() {
 		v := entities.Verse{}
@@ -85,7 +90,7 @@ func (st *VerseStorage) GetVersesForSong(opts entities.VerseSearchOptions) ([]*e
 	defer rows.Close()
 
 	builder = sq.Select("count(*)").From("verses")
-	builder = st.AddSearchOptionsToBuilder(builder, &opts)
+	builder = st.AddSearchOptionsToBuilder(builder, &opts, false)
 	builder = builder.PlaceholderFormat(sq.Dollar)
 	queryStr, args, err = builder.ToSql()
 	if err != nil {
@@ -132,13 +137,13 @@ func (st *VerseStorage) DeleteSong(id string) error {
 	return err
 }
 
-func (st *VerseStorage) AddSearchOptionsToBuilder(builder sq.SelectBuilder, opts *entities.VerseSearchOptions) sq.SelectBuilder {
-	if opts.SongID != "" {
-		builder = builder.Where(sq.Eq{"song_id": &opts.SongID})
+func (st *VerseStorage) AddSearchOptionsToBuilder(builder sq.SelectBuilder, opts *entities.VerseSearchOptions, enablePagination bool) sq.SelectBuilder {
+	if opts.SongID != nil {
+		builder = builder.Where(sq.Eq{"song_id": *opts.SongID})
 	}
-	if opts.Page != 0 && opts.PerPage != 0 {
-		builder = builder.Offset((uint64)(opts.PerPage * (opts.Page - 1)))
-		builder.Limit(uint64(opts.PerPage))
+
+	if enablePagination && opts.Page != nil && opts.PerPage != nil {
+		builder = builder.Offset((uint64)(*opts.PerPage * (*opts.Page - 1))).Limit(uint64(*opts.PerPage))
 	}
 	return builder
 }

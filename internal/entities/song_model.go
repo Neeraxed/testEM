@@ -23,12 +23,12 @@ type Song struct {
 }
 
 type SongSearchOptions struct {
-	Group             *string    `json:"group"`
-	Song              *string    `json:"song"`
-	ReleaseDateBefore *time.Time `json:"releaseDateBefore"`
-	ReleaseDateAfter  *time.Time `json:"releaseDateAfter"`
-	Page              *int       `json:"page"`
-	PerPage           *int       `json:"perPage"`
+	Group             *string
+	Song              *string
+	ReleaseDateBefore *time.Time
+	ReleaseDateAfter  *time.Time
+	Page              *int
+	PerPage           *int
 }
 
 type SongDetail struct {

@@ -4,11 +4,10 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/julienschmidt/httprouter"
 	"go.uber.org/zap"
 )
 
-type Function func(next httprouter.Handle) httprouter.Handle
+type Function func(next http.HandlerFunc) http.HandlerFunc
 
 type Onion struct {
 	middlewares []Function
@@ -22,7 +21,7 @@ func NewOnion(lg *zap.Logger) *Onion {
 	}
 }
 
-func (o *Onion) Apply(h httprouter.Handle) httprouter.Handle {
+func (o *Onion) Apply(h http.HandlerFunc) http.HandlerFunc {
 	for i := range o.middlewares {
 		h = o.middlewares[i](h)
 	}
@@ -33,8 +32,8 @@ func (o *Onion) AppendMiddleware(mw ...Function) {
 	o.middlewares = append(o.middlewares, mw...)
 }
 
-func (o *Onion) LogRequestResponse(next httprouter.Handle) httprouter.Handle {
-	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (o *Onion) LogRequestResponse(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		o.log.Info("Request recieved",
 			zap.String("method", r.Method),
 			zap.String("requestURI", r.RequestURI),
@@ -42,7 +41,7 @@ func (o *Onion) LogRequestResponse(next httprouter.Handle) httprouter.Handle {
 			zap.Time("time", time.Now()),
 		)
 
-		next(w, r, ps)
+		next(w, r)
 
 		o.log.Info("Response sent",
 			zap.Duration("time to handle", o.duration),
@@ -50,10 +49,10 @@ func (o *Onion) LogRequestResponse(next httprouter.Handle) httprouter.Handle {
 	}
 }
 
-func (o *Onion) Timer(next httprouter.Handle) httprouter.Handle {
-	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (o *Onion) Timer(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		next(w, r, ps)
+		next(w, r)
 		o.duration = time.Since(start)
 	}
 }

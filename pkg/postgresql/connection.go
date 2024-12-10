@@ -2,7 +2,6 @@ package postgresql
 
 import (
 	"database/sql"
-	"fmt"
 	migrate "github.com/rubenv/sql-migrate"
 	"go.uber.org/zap"
 )
@@ -17,8 +16,8 @@ func NewConnection(dsn string, log *zap.Logger) *sql.DB {
 		Dir: "migrations",
 	}
 
-	i, err := migrate.Exec(db, "postgres", migrations, migrate.Up)
-	fmt.Println("number of applied migrations", i)
+	_, err = migrate.Exec(db, "postgres", migrations, migrate.Up)
+
 	if err != nil {
 		log.Fatal("Failed to run migrations", zap.Error(err))
 	}

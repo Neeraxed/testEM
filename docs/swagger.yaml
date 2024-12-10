@@ -1,0 +1,163 @@
+definitions:
+  delivery.HttpError:
+    type: object
+  entities.Song:
+    properties:
+      group:
+        type: string
+      id:
+        type: string
+      link:
+        type: string
+      releaseDate:
+        type: string
+      song:
+        type: string
+    type: object
+  entities.SongsWrapper:
+    properties:
+      songs:
+        items:
+          $ref: '#/definitions/entities.Song'
+        type: array
+      total:
+        type: integer
+    type: object
+  entities.Verse:
+    properties:
+      content:
+        type: string
+      num:
+        type: integer
+      song_id:
+        type: string
+    type: object
+  entities.VersesWrapper:
+    properties:
+      total:
+        type: integer
+      verses:
+        items:
+          $ref: '#/definitions/entities.Verse'
+        type: array
+    type: object
+info:
+  contact:
+    email: Neeraxed@gmail.com
+    name: Alina Kuznetsova
+  description: Test app for EM from Alina Kuznetsova
+  termsOfService: http://github.com/Neeraxed
+  title: TestEM API
+  version: 0.0.1
+paths:
+  /songs:
+    delete:
+      description: delete song with specified id
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/delivery.HttpError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/delivery.HttpError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/delivery.HttpError'
+      summary: Delete song
+    get:
+      description: get string by filters
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/entities.SongsWrapper'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/delivery.HttpError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/delivery.HttpError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/delivery.HttpError'
+      summary: Get songs
+    patch:
+      description: update song with specified id
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/entities.Song'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/delivery.HttpError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/delivery.HttpError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/delivery.HttpError'
+      summary: Patch song
+    post:
+      description: add song
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/entities.Song'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/delivery.HttpError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/delivery.HttpError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/delivery.HttpError'
+      summary: Add song
+  /songs/{id}/verses:
+    get:
+      description: get verses for song
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/entities.VersesWrapper'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/delivery.HttpError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/delivery.HttpError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/delivery.HttpError'
+      summary: Get verses
+swagger: "2.0"

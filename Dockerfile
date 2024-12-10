@@ -9,5 +9,5 @@ FROM alpine:3
 RUN mkdir /testEM
 WORKDIR /testEM
 COPY --from=builder /testEM/build .
-COPY --from=bulder /testEM/migrations ./migrations
+COPY --from=builder /testEM/migrations ./migrations
 CMD ["./testEM"]

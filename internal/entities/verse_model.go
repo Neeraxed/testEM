@@ -7,9 +7,9 @@ type Verse struct {
 }
 
 type VerseSearchOptions struct {
-	SongID  string `json:"song_id"`
-	Page    int    `json:"page"`
-	PerPage int    `json:"per_page"`
+	SongID  *string
+	Page    *int
+	PerPage *int
 }
 type VersesWrapper struct {
 	Verses []*Verse `json:"verses"`

@@ -3,7 +3,6 @@ package repository
 import (
 	"database/sql"
 	"errors"
-	"fmt"
 	"testEM/internal/entities"
 	"time"
 
@@ -34,7 +33,10 @@ func (e *NotFoundErr) Error() string {
 }
 
 func (st *SongStorage) AddSong(song entities.Song) (*entities.Song, error) {
-	builder := sq.Insert("songs").Columns("group_name", "song", "releaseDate", "link").Values(*song.Group, *song.Song, *song.ReleaseDate, *song.Link).Suffix("RETURNING \"id\"").PlaceholderFormat(sq.Dollar)
+	builder := sq.Insert("songs").
+		Columns("group_name", "song", "release_date", "link").
+		Values(*song.Group, *song.Song, *song.ReleaseDate, *song.Link).
+		Suffix("RETURNING \"id\"").PlaceholderFormat(sq.Dollar)
 
 	query, args, err := builder.ToSql()
 	if err != nil {
@@ -44,7 +46,7 @@ func (st *SongStorage) AddSong(song entities.Song) (*entities.Song, error) {
 		)
 		return nil, err
 	}
-	fmt.Println(query, args)
+
 	err = st.db.QueryRow(query, args...).Scan(&song.ID)
 	if err != nil {
 		st.log.Debug("Failed to execute query in AddSong",
@@ -59,7 +61,7 @@ func (st *SongStorage) AddSong(song entities.Song) (*entities.Song, error) {
 
 func (st *SongStorage) GetSongsWithFilters(opts *entities.SongSearchOptions) ([]*entities.Song, int, error) {
 	builder := sq.Select("*").From("songs")
-	builder = st.AddSearchOptionsToBuilder(builder, opts)
+	builder = st.AddSearchOptionsToBuilder(builder, opts, true)
 	builder = builder.PlaceholderFormat(sq.Dollar)
 
 	queryStr, args, err := builder.ToSql()
@@ -71,7 +73,7 @@ func (st *SongStorage) GetSongsWithFilters(opts *entities.SongSearchOptions) ([]
 		return nil, 0, err
 	}
 
-	var songs []*entities.Song
+	songs := make([]*entities.Song, 0)
 	rows, err := st.db.Query(queryStr, args...)
 
 	for rows.Next() {
@@ -101,7 +103,7 @@ func (st *SongStorage) GetSongsWithFilters(opts *entities.SongSearchOptions) ([]
 	}
 
 	builder = sq.Select("count(*)").From("songs")
-	builder = st.AddSearchOptionsToBuilder(builder, opts)
+	builder = st.AddSearchOptionsToBuilder(builder, opts, false)
 	builder = builder.PlaceholderFormat(sq.Dollar)
 
 	queryStr, args, err = builder.ToSql()
@@ -177,7 +179,7 @@ func (st *SongStorage) UpdateSong(id string, song entities.Song) (*entities.Song
 	return &song, err
 }
 
-func (st *SongStorage) AddSearchOptionsToBuilder(builder sq.SelectBuilder, opts *entities.SongSearchOptions) sq.SelectBuilder {
+func (st *SongStorage) AddSearchOptionsToBuilder(builder sq.SelectBuilder, opts *entities.SongSearchOptions, enablePagination bool) sq.SelectBuilder {
 	if opts.Group != nil {
 		builder = builder.Where(sq.Eq{"group_name": *opts.Group})
 	}
@@ -187,16 +189,15 @@ func (st *SongStorage) AddSearchOptionsToBuilder(builder sq.SelectBuilder, opts 
 	}
 
 	if opts.ReleaseDateAfter != nil {
-		builder = builder.Where(sq.GtOrEq{"releaseDate": *opts.ReleaseDateAfter})
+		builder = builder.Where(sq.GtOrEq{"release_date": *opts.ReleaseDateAfter})
 	}
 
 	if opts.ReleaseDateBefore != nil {
-		builder = builder.Where(sq.LtOrEq{"releaseDate": *opts.ReleaseDateBefore})
+		builder = builder.Where(sq.LtOrEq{"release_date": *opts.ReleaseDateBefore})
 	}
 
-	if opts.Page != nil && opts.PerPage != nil {
-		builder = builder.Offset((uint64)(*opts.PerPage * (*opts.Page - 1)))
-		builder.Limit(uint64(*opts.PerPage))
+	if enablePagination && opts.Page != nil && opts.PerPage != nil {
+		builder = builder.Offset((uint64)(*opts.PerPage * (*opts.Page - 1))).Limit(uint64(*opts.PerPage))
 	}
 	return builder
 }
@@ -214,7 +215,7 @@ func (st *SongStorage) AddUpdateOptionsToBuilder(builder sq.UpdateBuilder, song 
 		builder = builder.Set("link", *song.Link)
 	}
 	if song.ReleaseDate != nil {
-		builder = builder.Set("releaseDate", *song.ReleaseDate)
+		builder = builder.Set("release_date", *song.ReleaseDate)
 	}
 	return builder
 }

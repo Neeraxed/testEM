@@ -1,10 +1,8 @@
 package usecase
 
 import (
-	"errors"
 	"strings"
 	"testEM/internal/entities"
-	"testEM/internal/repository"
 	"time"
 
 	"go.uber.org/zap"
@@ -49,12 +47,16 @@ func NewUsecase(sr SongRepo, vr VerseRepo, log *zap.Logger, client DetailClient)
 func (uc *Usecase) GetSongsWithFilters(options entities.SongSearchOptions) (entities.SongsWrapper, error) {
 	s, count, err := uc.songRepo.GetSongsWithFilters(&options)
 	if err != nil {
-		if errors.Is(err, &repository.NotFoundErr{}) {
-			uc.log.Error("Songs not found",
-				zap.String("message", err.Error()),
-				zap.Time("time", time.Now()),
-			)
-		}
+		//if errors.Is(err, &repository.NotFoundErr{}) {
+		//	uc.log.Error("Songs not found",
+		//		zap.String("message", err.Error()),
+		//		zap.Time("time", time.Now()),
+		//	)
+		//}
+		uc.log.Error("failed to get songs with filters",
+			zap.String("message", err.Error()),
+			zap.Time("time", time.Now()),
+		)
 		return entities.SongsWrapper{}, err
 	}
 	uc.log.Info("Recieved list of songs with filters",
@@ -70,7 +72,7 @@ func (uc *Usecase) GetSongsWithFilters(options entities.SongSearchOptions) (enti
 func (uc *Usecase) GetVerses(options entities.VerseSearchOptions) (entities.VersesWrapper, error) {
 	verses, count, err := uc.verseRepo.GetVersesForSong(options)
 	if err != nil {
-		uc.log.Error("Song text not found",
+		uc.log.Error("failed to get verses for song",
 			zap.String("message", err.Error()),
 			zap.Time("time", time.Now()),
 		)

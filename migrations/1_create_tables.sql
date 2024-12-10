@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS songs (
     id serial PRIMARY KEY,
     group_name VARCHAR (1024),
     song VARCHAR (1024),
-    releaseDate date,
+    release_date date,
     link VARCHAR (1024)
 );
 
